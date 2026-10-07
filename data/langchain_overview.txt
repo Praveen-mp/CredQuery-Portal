@@ -1,0 +1,41 @@
+LangChain Expression Language (LCEL) is a declarative way to compose chains of
+Runnables using the pipe operator. Any Runnable, such as a prompt template, a
+chat model, an output parser, or a retriever, can be composed with another
+Runnable using the | operator to form a RunnableSequence. Because every piece
+implements the same Runnable interface, a composed chain automatically gets
+batching, streaming, and async support without any extra code.
+
+Retrieval-Augmented Generation, or RAG, is a pattern for grounding a language
+model's responses in external knowledge that was not part of its training
+data. Instead of relying solely on the model's parametric memory, a RAG
+pipeline retrieves relevant chunks of text from a knowledge base and inserts
+them into the prompt before generation. This reduces hallucination and allows
+the system to answer questions about private documents, recent events, or
+domain-specific knowledge the model has never seen.
+
+A typical RAG pipeline has four stages. First, documents are loaded from a
+source such as text files, PDFs, or web pages using a document loader. Second,
+documents are split into smaller chunks using a text splitter, because
+embedding models and language models both have limited context windows, and
+smaller chunks improve retrieval precision. Third, each chunk is converted
+into a vector using an embedding model and stored in a vector store such as
+Chroma, FAISS, or Pinecone. Fourth, at query time, the user's question is
+embedded with the same embedding model, the vector store returns the most
+similar chunks, and those chunks are inserted into a prompt that is sent to
+the language model.
+
+Chunk size and chunk overlap are two of the most important tuning parameters
+in a RAG system. If chunks are too large, retrieval becomes imprecise because
+a chunk may contain multiple unrelated ideas, diluting its embedding. If
+chunks are too small, important context may be split across multiple chunks
+and lost. Chunk overlap, typically ten to twenty percent of the chunk size,
+helps preserve context across chunk boundaries so that a sentence or idea
+split at a chunk boundary still appears in full in at least one chunk.
+
+RecursiveCharacterTextSplitter is the most commonly used text splitter in
+LangChain. It tries to split text along a prioritized list of separators,
+typically double newlines, then single newlines, then spaces, and only falls
+back to splitting mid-word when necessary. This recursive strategy tends to
+keep semantically related text, such as a full paragraph or sentence, together
+in the same chunk whenever possible, which produces higher quality embeddings
+than naive fixed-length splitting.
