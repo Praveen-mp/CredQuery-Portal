@@ -1,3 +1,5 @@
+from urllib.parse import quote_plus
+
 from langchain_community.utilities import SQLDatabase
 
 from dbchat.adapters.base import BaseDBAdapter
@@ -10,10 +12,17 @@ class PostgresAdapter(BaseDBAdapter):
     display_name = "PostgreSQL"
 
     def __init__(self, connection: dict):
+        username = quote_plus(connection["username"])
+        password = quote_plus(connection["password"])
         uri = (
-            f"postgresql+psycopg2://{connection['username']}:{connection['password']}"
+            f"postgresql+psycopg2://{username}:{password}"
             f"@{connection['host']}:{connection['port']}/{connection['database_name']}"
         )
+        # Most managed Postgres (RDS, Cloud SQL, Supabase, ...) requires SSL.
+        # sslmode is optional in the connection dict — defaults to "prefer"
+        # (use SSL if the server offers it, same as psycopg2's own default).
+        sslmode = connection.get("sslmode") or "prefer"
+        uri += f"?sslmode={sslmode}"
         self._db = SQLDatabase.from_uri(uri)
 
     def test_connection(self) -> tuple[bool, str]:

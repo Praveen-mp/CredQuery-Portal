@@ -7,10 +7,15 @@ from dbchat.security.sql_guard import UnsafeQueryError, ensure_safe_select
 from dbchat.storage.store import get_connection_with_password, get_llm_config
 
 
+class LLMNotConfiguredError(RuntimeError):
+    """Raised when no LLM provider has been saved yet. Distinct from a DB
+    connection failure so the UI can point the user at the right fix."""
+
+
 def _build_llm():
     llm_config = get_llm_config()
     if llm_config is None:
-        raise RuntimeError("No LLM provider configured yet — complete Setup first.")
+        raise LLMNotConfiguredError("No LLM provider configured yet — complete Setup first.")
 
     if llm_config["provider"] != "azure_openai":
         raise NotImplementedError(f"Provider {llm_config['provider']!r} not supported yet.")

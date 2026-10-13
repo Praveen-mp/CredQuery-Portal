@@ -22,6 +22,7 @@ class DBConnection(Base):
     database_name: Mapped[str] = mapped_column(String)
     username: Mapped[str] = mapped_column(String)
     encrypted_password: Mapped[str] = mapped_column(String)
+    sslmode: Mapped[str] = mapped_column(String, default="prefer")
     readonly_confirmed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
 
