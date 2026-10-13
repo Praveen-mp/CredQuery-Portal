@@ -13,3 +13,19 @@ wheels/
 .env
 .env.*
 !.env.example
+
+# SQLite metadata DBs (dbchat's local connection/credential store)
+*.db
+*.db-journal
+
+# Claude Code local tool/skill cache — machine-local, not project source
+.claude/
+.agents/
+
+# OS cruft
+.DS_Store
+
+# Test/tooling caches
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

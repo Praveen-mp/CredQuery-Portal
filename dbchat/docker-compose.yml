@@ -1,0 +1,13 @@
+services:
+  dbchat:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - APP_SECRET_KEY=${APP_SECRET_KEY:?Set APP_SECRET_KEY in your .env — see .env.example}
+      - METADATA_DB_PATH=/data/dbchat_metadata.db
+    volumes:
+      - dbchat_data:/data
+
+volumes:
+  dbchat_data:
