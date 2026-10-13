@@ -31,7 +31,16 @@ def session_scope():
 
 
 def save_connection(
-    *, name, db_type, host, port, database_name, username, password, readonly_confirmed=False
+    *,
+    name,
+    db_type,
+    host,
+    port,
+    database_name,
+    username,
+    password,
+    sslmode="prefer",
+    readonly_confirmed=False,
 ) -> int:
     with session_scope() as session:
         conn = DBConnection(
@@ -42,6 +51,7 @@ def save_connection(
             database_name=database_name,
             username=username,
             encrypted_password=encrypt(password),
+            sslmode=sslmode,
             readonly_confirmed=readonly_confirmed,
         )
         session.add(conn)
@@ -61,6 +71,7 @@ def list_connections() -> list[dict]:
                 "port": c.port,
                 "database_name": c.database_name,
                 "username": c.username,
+                "sslmode": c.sslmode,
                 "readonly_confirmed": c.readonly_confirmed,
             }
             for c in session.query(DBConnection).all()
@@ -83,6 +94,7 @@ def get_connection_with_password(connection_id: int) -> dict | None:
             "database_name": c.database_name,
             "username": c.username,
             "password": decrypt(c.encrypted_password),
+            "sslmode": c.sslmode,
         }
 
 

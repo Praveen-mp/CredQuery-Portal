@@ -23,7 +23,14 @@ class BaseDBAdapter(ABC):
     def __init__(self, connection: dict):
         """`connection` has keys: host, port, database_name, username, password
         (the decrypted dict returned by storage.store.get_connection_with_password,
-        or an equivalent dict of fields being tested before they're saved)."""
+        or an equivalent dict of fields being tested before they're saved).
+
+        Note: many underlying clients (e.g. SQLAlchemy's SQLDatabase) connect
+        and introspect the schema eagerly, right here in __init__, rather than
+        lazily on first use. That means __init__ itself can raise on bad
+        host/credentials — every call site that constructs an adapter (the
+        setup wizard, the agent builder) MUST wrap construction in try/except,
+        not just the call to test_connection()."""
 
     @abstractmethod
     def test_connection(self) -> tuple[bool, str]:
