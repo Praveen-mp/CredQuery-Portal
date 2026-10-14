@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from dbchat.core.config import get_app_settings
 from dbchat.core.crypto import decrypt, encrypt
-from dbchat.storage.models import Base, DBConnection, LLMConfig
+from dbchat.storage.models import Base, DBConnection, LLMConfig, SavedReport
 
 
 @lru_cache
@@ -103,6 +103,38 @@ def delete_connection(connection_id: int) -> None:
         c = session.get(DBConnection, connection_id)
         if c is not None:
             session.delete(c)
+
+
+def save_report(*, connection_id: int, name: str, question: str) -> int:
+    with session_scope() as session:
+        report = SavedReport(connection_id=connection_id, name=name, question=question)
+        session.add(report)
+        session.flush()
+        return report.id
+
+
+def list_reports(connection_id: int | None = None) -> list[dict]:
+    with session_scope() as session:
+        query = session.query(SavedReport)
+        if connection_id is not None:
+            query = query.filter(SavedReport.connection_id == connection_id)
+        return [
+            {
+                "id": r.id,
+                "connection_id": r.connection_id,
+                "name": r.name,
+                "question": r.question,
+                "created_at": r.created_at,
+            }
+            for r in query.order_by(SavedReport.created_at.desc()).all()
+        ]
+
+
+def delete_report(report_id: int) -> None:
+    with session_scope() as session:
+        r = session.get(SavedReport, report_id)
+        if r is not None:
+            session.delete(r)
 
 
 def save_llm_config(*, provider, endpoint, deployment_name, api_version, api_key) -> None:

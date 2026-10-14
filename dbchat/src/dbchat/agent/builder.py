@@ -1,3 +1,5 @@
+import json
+
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain_core.tools import tool
@@ -53,9 +55,13 @@ def _build_tools(adapter):
         except UnsafeQueryError as exc:
             return f"Query rejected by safety guard: {exc}"
         try:
-            return adapter.run_query(safe_query)
+            rows = adapter.run_query(safe_query)
         except Exception as exc:  # surface DB errors back to the model, don't crash
             return f"Database error: {exc}"
+        # JSON so the model can read it AND the UI can parse the same string
+        # back out for Excel/PDF export and "save as report" — single channel,
+        # no separate side-state to keep in sync.
+        return json.dumps({"row_count": len(rows), "rows": rows})
 
     return [list_tables, get_schema, run_select_query]
 
@@ -97,3 +103,20 @@ def extract_tool_trace(messages):
         for tc in getattr(msg, "tool_calls", None) or []:
             trace.append((tc["name"], tc["args"]))
     return trace
+
+
+def extract_query_result(messages) -> list[dict] | None:
+    """Pulls the rows from the most recent successful run_select_query call
+    in this response, for the UI's export/save-as-report features. Returns
+    None if no query ran, or it ran but returned no rows/failed."""
+    for msg in reversed(messages):
+        if getattr(msg, "name", None) != "run_select_query":
+            continue
+        try:
+            parsed = json.loads(msg.content)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        rows = parsed.get("rows")
+        if rows:
+            return rows
+    return None

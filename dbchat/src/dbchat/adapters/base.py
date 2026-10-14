@@ -48,11 +48,22 @@ class BaseDBAdapter(ABC):
         """Human/LLM-readable schema description for the given tables."""
 
     @abstractmethod
-    def run_query(self, query: str) -> str:
-        """Execute an ALREADY-VALIDATED, read-only query and return a string
-        representation of the result. Callers (the agent's tool layer) are
-        responsible for passing the query through dbchat.security.sql_guard
-        first — this method does not re-validate, it trusts its caller."""
+    def run_query(self, query: str) -> list[dict]:
+        """Execute an ALREADY-VALIDATED, read-only query and return the rows
+        as a list of {column_name: value} dicts. Callers (the agent's tool
+        layer) are responsible for passing the query through
+        dbchat.security.sql_guard first — this method does not re-validate,
+        it trusts its caller.
+
+        Implementations MUST cap the number of rows returned (a few hundred
+        is reasonable) — an unbounded result set is both an LLM-context-size
+        problem and a production-database-load problem. Values must be
+        JSON-serializable; convert driver-specific types (Decimal, date,
+        datetime, UUID, ...) to str/int/float as needed.
+
+        Returning structured rows (not a pre-formatted string) is what lets
+        the UI offer Excel/PDF export and "save as report" on top of any
+        adapter without adapter-specific code."""
 
     @property
     @abstractmethod
