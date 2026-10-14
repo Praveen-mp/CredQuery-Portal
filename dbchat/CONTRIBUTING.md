@@ -7,6 +7,41 @@ uv sync --extra dev
 uv run pytest
 ```
 
+One-time, per clone — install the commit message hook (the repo's `.git` is
+at the top level, one level above `dbchat/`, so this is run from there):
+
+```bash
+cd ..   # repo root
+uv tool install pre-commit   # or: pip install pre-commit / pipx install pre-commit
+pre-commit install --hook-type commit-msg
+```
+
+## Commit messages
+
+Enforced locally by the hook above, via `.pre-commit-config.yaml` — a commit
+with a non-conforming message is rejected before it's created. Format is
+[Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+```
+
+Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+`build`, `ci`, `chore`, `revert`.
+
+```
+feat(reports): add Excel/PDF export for saved reports
+fix(adapters): url-encode postgres credentials in the connection URI
+docs: document the run_query contract change
+```
+
+Since this is a git hook (not version-controlled, not enforced via clone),
+anyone contributing needs to run `pre-commit install --hook-type commit-msg`
+themselves once — CI should also run `conventional-pre-commit` against the
+PR title/commits so an unhooked contributor's push still gets caught.
+
 ## Adding a new database adapter
 
 This is the main way to contribute. Every adapter implements the same
