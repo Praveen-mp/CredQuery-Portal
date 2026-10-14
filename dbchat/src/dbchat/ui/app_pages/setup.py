@@ -1,7 +1,10 @@
 import streamlit as st
 
-from dbchat.adapters.registry import available_adapters, get_adapter_class
-from dbchat.storage.store import get_llm_config, save_connection, save_llm_config
+from dbchat.adapters.registry import available_adapters
+from dbchat.deps import get_connection_service, get_llm_config_service
+
+llm_config_service = get_llm_config_service()
+connection_service = get_connection_service()
 
 st.title("Setup", icon=":material/settings:")
 st.caption(
@@ -13,7 +16,7 @@ st.caption(
 llm_tab, db_tab = st.tabs(["LLM provider", "Database connections"])
 
 with llm_tab:
-    existing_llm = get_llm_config()
+    existing_llm = llm_config_service.get()
     if existing_llm:
         st.caption(f"Currently configured: **{existing_llm['deployment_name']}** ({existing_llm['endpoint']})")
 
@@ -37,7 +40,7 @@ with llm_tab:
             if not all([deployment_name, endpoint, api_version, key_to_store]):
                 st.error("All fields are required.", icon=":material/error:")
             else:
-                save_llm_config(
+                llm_config_service.save(
                     provider="azure_openai",
                     endpoint=endpoint,
                     deployment_name=deployment_name,
@@ -92,29 +95,21 @@ with db_tab:
             elif not all([name, host, database_name, username]):
                 st.error("Please fill in all fields.", icon=":material/error:")
             else:
-                adapter_cls = get_adapter_class(db_type)
-                candidate = {
-                    "host": host,
-                    "port": int(port),
-                    "database_name": database_name,
-                    "username": username,
-                    "password": password,
-                    "sslmode": sslmode,
-                }
                 with st.spinner("Testing connection..."):
-                    try:
-                        ok, message = adapter_cls(candidate).test_connection()
-                    except Exception as exc:
-                        # The adapter's __init__ (e.g. SQLDatabase.from_uri) connects
-                        # eagerly to introspect the schema, so a bad host/credentials
-                        # can raise here — before test_connection()'s own try/except
-                        # ever runs. Catch it at the call site instead.
-                        ok, message = False, str(exc)
+                    ok, message = connection_service.test(
+                        db_type=db_type,
+                        host=host,
+                        port=int(port),
+                        database_name=database_name,
+                        username=username,
+                        password=password,
+                        sslmode=sslmode,
+                    )
 
                 if not ok:
                     st.error(f"Connection failed: {message}", icon=":material/error:")
                 else:
-                    save_connection(
+                    connection_service.create(
                         name=name,
                         db_type=db_type,
                         host=host,

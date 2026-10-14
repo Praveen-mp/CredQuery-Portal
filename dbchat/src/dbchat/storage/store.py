@@ -140,6 +140,20 @@ def list_reports(connection_id: int | None = None) -> list[dict]:
         ]
 
 
+def get_report(report_id: int) -> dict | None:
+    with session_scope() as session:
+        r = session.get(SavedReport, report_id)
+        if r is None:
+            return None
+        return {
+            "id": r.id,
+            "connection_id": r.connection_id,
+            "name": r.name,
+            "question": r.question,
+            "created_at": r.created_at,
+        }
+
+
 def delete_report(report_id: int) -> None:
     with session_scope() as session:
         r = session.get(SavedReport, report_id)

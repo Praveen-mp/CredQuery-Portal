@@ -2,18 +2,17 @@ import uuid
 
 import streamlit as st
 
-from dbchat.agent.builder import (
-    LLMNotConfiguredError,
-    build_agent_for_connection,
-    extract_query_result,
-    extract_tool_trace,
-)
+from dbchat.agent.builder import LLMNotConfiguredError
+from dbchat.deps import get_chat_service, get_connection_service, get_report_service
 from dbchat.reports.export import rows_to_excel_bytes, rows_to_pdf_bytes
-from dbchat.security.rate_limiter import get_rate_limiter
-from dbchat.storage.store import list_connections, save_report
+from dbchat.services.chat_service import RateLimitExceededError
 from dbchat.ui.errors import render_llm_not_configured_error
 
-connections = list_connections()
+connection_service = get_connection_service()
+chat_service = get_chat_service()
+report_service = get_report_service()
+
+connections = connection_service.list()
 
 if not connections:
     st.title("Chat")
@@ -46,32 +45,6 @@ with st.sidebar:
 st.title("Chat", icon=":material/chat:")
 st.caption(f"Connected to **{options[selected_id]}** · read-only")
 
-
-@st.cache_resource
-def get_agent(connection_id: int):
-    return build_agent_for_connection(connection_id)
-
-
-try:
-    agent = get_agent(selected_id)
-except LLMNotConfiguredError:
-    render_llm_not_configured_error()
-    st.stop()
-except Exception as exc:
-    st.error(
-        f"Couldn't connect using **{options[selected_id]}**. The database may be "
-        f"unreachable or its credentials may have changed.",
-        icon=":material/error:",
-    )
-    with st.expander("Technical details"):
-        st.code(str(exc), language="text")
-    st.page_link(
-        "app_pages/connections.py", label="Check this connection", icon=":material/tune:"
-    )
-    st.stop()
-
-rate_limiter = get_rate_limiter()
-
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
@@ -82,7 +55,7 @@ def save_as_report_dialog(connection_id: int, question: str):
     st.caption("Saved as a question you can rerun later — it always queries live data.")
     report_name = st.text_input("Report name", placeholder="e.g. Weekly signups by region")
     if st.button("Save", type="primary", icon=":material/save:", disabled=not report_name):
-        save_report(connection_id=connection_id, name=report_name, question=question)
+        report_service.save(connection_id=connection_id, name=report_name, question=question)
         st.toast(f'Saved report "{report_name}".', icon=":material/check_circle:")
         st.rerun()
 
@@ -138,28 +111,43 @@ if prompt:
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        if not rate_limiter.allow(st.session_state.session_id):
-            wait_s = rate_limiter.seconds_until_next_slot(st.session_state.session_id)
-            answer = f"Rate limit reached. Try again in {wait_s:.0f}s."
-            trace = []
-            result_rows = None
-            st.warning(answer, icon=":material/timer:")
-        else:
-            history = [
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state[history_key]
-            ]
+        history = [
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state[history_key]
+        ]
+        trace, result_rows = [], None
+        try:
             with st.status(":shimmer[Querying the database]", type="compact") as status:
-                response = agent.invoke({"messages": history})
-                trace = extract_tool_trace(response["messages"])
-                result_rows = extract_query_result(response["messages"])
+                result = chat_service.ask(
+                    connection_id=selected_id,
+                    session_id=st.session_state.session_id,
+                    history=history,
+                )
+                trace = result["trace"]
+                result_rows = result["rows"]
                 for name, args in trace:
                     with st.status(f"Called `{name}`", type="step", state="complete"):
                         st.code(str(args), language="text")
                 status.update(label="Done", state="complete")
-
-            answer = response["messages"][-1].content
+            answer = result["answer"]
             st.markdown(answer)
+        except RateLimitExceededError as exc:
+            answer = f"Rate limit reached. Try again in {exc.retry_after_seconds:.0f}s."
+            st.warning(answer, icon=":material/timer:")
+        except LLMNotConfiguredError:
+            answer = "No LLM provider configured yet."
+            render_llm_not_configured_error()
+        except Exception as exc:
+            answer = (
+                f"Couldn't connect using **{options[selected_id]}**. The database may be "
+                f"unreachable or its credentials may have changed."
+            )
+            st.error(answer, icon=":material/error:")
+            with st.expander("Technical details"):
+                st.code(str(exc), language="text")
+            st.page_link(
+                "app_pages/connections.py", label="Check this connection", icon=":material/tune:"
+            )
 
     st.session_state[history_key].append(
         {
