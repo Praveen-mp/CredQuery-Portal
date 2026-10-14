@@ -17,9 +17,7 @@ def store(tmp_path, monkeypatch):
     get_app_settings.cache_clear()
 
 
-def test_save_list_delete_report_roundtrip(store):  # pylint: disable=redefined-outer-name
-    # The parameter is intentionally named `store` to match the fixture above —
-    # that's how pytest fixture injection works, not an accidental shadow.
+def test_save_list_delete_report_roundtrip(store):
     report_id = store.save_report(
         connection_id=1, name="Weekly signups", question="How many signups last week?"
     )

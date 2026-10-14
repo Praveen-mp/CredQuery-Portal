@@ -1,10 +1,12 @@
 import streamlit as st
 
-from dbchat.storage.store import delete_connection, list_connections
+from dbchat.deps import get_connection_service
+
+connection_service = get_connection_service()
 
 st.title("Connections", icon=":material/database:")
 
-connections = list_connections()
+connections = connection_service.list()
 
 if not connections:
     st.info("No connections yet.", icon=":material/info:")
@@ -19,7 +21,7 @@ def confirm_delete(connection_id: int, name: str):
         if st.button("Cancel", width="stretch"):
             st.rerun()
         if st.button("Delete", type="primary", icon=":material/delete:", width="stretch"):
-            delete_connection(connection_id)
+            connection_service.delete(connection_id)
             st.rerun()
 
 

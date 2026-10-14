@@ -18,6 +18,8 @@ dependencies = [
     "pandas>=3.0.6",
     "openpyxl>=3.1.5",
     "fpdf2>=2.8.9",
+    "fastapi>=0.143.1",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [project.optional-dependencies]
@@ -27,6 +29,7 @@ dev = [
     "pytest>=8.0.0",
     "pypdf>=5.0.0",
     "pylint>=4.1.3",
+    "httpx>=0.28.1",
 ]
 
 [build-system]
@@ -51,6 +54,15 @@ fail-under = 9.5
 [tool.pylint.format]
 max-line-length = 120
 
+[tool.pylint.similarities]
+# Default (4) flags things like a caller passing the same 6-8 keyword
+# arguments a layered call chain (UI -> service -> repository -> storage)
+# mechanically repeats at each boundary — that's not duplicated logic, it's
+# inherent to explicit parameters. Raised so it still catches real duplicated
+# behavior (it previously caught app/ being a near-complete duplicate of
+# dbchat/ before app/ was deleted).
+min-similarity-lines = 10
+
 [tool.pylint."messages control"]
 disable = [
     "missing-module-docstring",
@@ -58,4 +70,17 @@ disable = [
     "missing-function-docstring",
     # SQLAlchemy models and Settings classes are data containers by design.
     "too-few-public-methods",
+    # A pytest test function taking a parameter named after the fixture it
+    # requests (e.g. `def test_x(client): ...` using a `client` fixture) is
+    # how fixture injection works, not an accidental shadow — pylint doesn't
+    # understand the pytest fixture mechanism.
+    "redefined-outer-name",
 ]
+
+[tool.pylint.basic]
+# Streamlit pages (ui/app_pages/*.py) are flat, sequential scripts by design
+# (see CONTRIBUTING.md) — a module-scope variable there is ordinary control
+# flow, not an exported constant, so don't force UPPER_CASE on it. Function,
+# class, and variable naming checks (which DO matter — see CLAUDE.md) are
+# untouched by this.
+const-naming-style = "any"
