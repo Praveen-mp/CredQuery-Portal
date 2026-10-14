@@ -5,10 +5,13 @@ import streamlit as st
 from dbchat.agent.builder import (
     LLMNotConfiguredError,
     build_agent_for_connection,
+    extract_query_result,
     extract_tool_trace,
 )
+from dbchat.reports.export import rows_to_excel_bytes, rows_to_pdf_bytes
 from dbchat.security.rate_limiter import get_rate_limiter
-from dbchat.storage.store import list_connections
+from dbchat.storage.store import list_connections, save_report
+from dbchat.ui.errors import render_llm_not_configured_error
 
 connections = list_connections()
 
@@ -52,10 +55,7 @@ def get_agent(connection_id: int):
 try:
     agent = get_agent(selected_id)
 except LLMNotConfiguredError:
-    st.error("No LLM provider configured yet.", icon=":material/error:")
-    st.page_link(
-        "app_pages/setup.py", label="Complete LLM setup", icon=":material/settings:"
-    )
+    render_llm_not_configured_error()
     st.stop()
 except Exception as exc:
     st.error(
@@ -75,12 +75,44 @@ rate_limiter = get_rate_limiter()
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-for msg in st.session_state[history_key]:
+
+@st.dialog("Save as report")
+def save_as_report_dialog(connection_id: int, question: str):
+    st.caption(f'Question: "{question}"')
+    st.caption("Saved as a question you can rerun later — it always queries live data.")
+    report_name = st.text_input("Report name", placeholder="e.g. Weekly signups by region")
+    if st.button("Save", type="primary", icon=":material/save:", disabled=not report_name):
+        save_report(connection_id=connection_id, name=report_name, question=question)
+        st.toast(f'Saved report "{report_name}".', icon=":material/check_circle:")
+        st.rerun()
+
+
+for i, msg in enumerate(st.session_state[history_key]):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         for name, args in msg.get("trace", []):
             with st.expander(f"Called `{name}`", icon=":material/function:"):
                 st.code(str(args), language="text")
+
+        result_rows = msg.get("result_rows")
+        if result_rows:
+            with st.container(horizontal=True):
+                st.download_button(
+                    "Excel",
+                    data=rows_to_excel_bytes(result_rows),
+                    file_name="report.xlsx",
+                    icon=":material/download:",
+                    key=f"xlsx_{i}",
+                )
+                st.download_button(
+                    "PDF",
+                    data=rows_to_pdf_bytes(result_rows, title=msg.get("question", "Report")),
+                    file_name="report.pdf",
+                    icon=":material/download:",
+                    key=f"pdf_{i}",
+                )
+                if st.button("Save as report", icon=":material/bookmark_add:", key=f"save_{i}"):
+                    save_as_report_dialog(selected_id, msg.get("question", ""))
 
 SUGGESTIONS = {
     ":material/list: What tables are available?": "What tables are available?",
@@ -110,6 +142,7 @@ if prompt:
             wait_s = rate_limiter.seconds_until_next_slot(st.session_state.session_id)
             answer = f"Rate limit reached. Try again in {wait_s:.0f}s."
             trace = []
+            result_rows = None
             st.warning(answer, icon=":material/timer:")
         else:
             history = [
@@ -119,6 +152,7 @@ if prompt:
             with st.status(":shimmer[Querying the database]", type="compact") as status:
                 response = agent.invoke({"messages": history})
                 trace = extract_tool_trace(response["messages"])
+                result_rows = extract_query_result(response["messages"])
                 for name, args in trace:
                     with st.status(f"Called `{name}`", type="step", state="complete"):
                         st.code(str(args), language="text")
@@ -128,6 +162,12 @@ if prompt:
             st.markdown(answer)
 
     st.session_state[history_key].append(
-        {"role": "assistant", "content": answer, "trace": trace}
+        {
+            "role": "assistant",
+            "content": answer,
+            "trace": trace,
+            "result_rows": result_rows,
+            "question": prompt,
+        }
     )
     st.rerun()

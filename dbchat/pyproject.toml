@@ -15,12 +15,19 @@ dependencies = [
     "cryptography>=43.0.0",
     "streamlit>=1.65.0",
     "python-dotenv>=1.2.4",
+    "pandas>=3.0.6",
+    "openpyxl>=3.1.5",
+    "fpdf2>=2.8.9",
 ]
 
 [project.optional-dependencies]
 mysql = ["pymysql>=1.2.3"]
 mongo = ["pymongo>=4.18.3"]
-dev = ["pytest>=8.0.0"]
+dev = [
+    "pytest>=8.0.0",
+    "pypdf>=5.0.0",
+    "pylint>=4.1.3",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -28,3 +35,27 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dbchat"]
+
+[tool.pylint.main]
+# Run pylint against the installed env so it can actually resolve imports:
+#   uv run pylint src tests
+init-hook = 'import sys; sys.path.insert(0, "src")'
+# Gate on SCORE, not on "zero messages were printed" — pylint's own exit code
+# is a bitmask of severities found, so even one expected/reviewed warning
+# (see the broad-exception-caught catches at adapter/agent boundaries,
+# documented in adapters/base.py) makes it return non-zero and fail CI for
+# no real reason. This still prints every message; it just doesn't fail the
+# build over ones we've already reviewed and accepted.
+fail-under = 9.5
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    # SQLAlchemy models and Settings classes are data containers by design.
+    "too-few-public-methods",
+]

@@ -27,11 +27,12 @@ BigQuery, ...) can be added without touching the agent or UI code — see
 ```
 src/dbchat/
 ├── core/        # bootstrap config (one encryption key, read once at deploy time)
-├── storage/     # encrypted metadata store (SQLite) for connections + LLM config
+├── storage/     # encrypted metadata store (SQLite) for connections, LLM config, saved reports
 ├── adapters/    # BaseDBAdapter plugin interface + concrete adapters (postgres.py, ...)
 ├── security/    # sql_guard (read-only query enforcement) + rate_limiter
 ├── agent/       # adapter-agnostic LangChain agent builder
-└── ui/          # Streamlit app: Setup wizard, Connections manager, Chat
+├── reports/     # Excel/PDF export from any query result
+└── ui/          # Streamlit app: Setup wizard, Connections manager, Chat, Reports
 ```
 
 Two kinds of configuration, deliberately kept apart:
@@ -77,6 +78,21 @@ cp .env.example .env
 
 uv run streamlit run src/dbchat/ui/streamlit_app.py
 ```
+
+## Reports and export
+
+Any chat answer that ran a query gets **Excel** and **PDF** download buttons
+right there in the conversation. If it's a question worth asking again, click
+**Save as report** — it's stored as a question (not a cached answer), so
+running it later always queries live data. The **Reports** page lists saved
+reports per connection, with one-click **Run** (re-queries live) and
+**Delete**.
+
+Technically, this works because `BaseDBAdapter.run_query` returns structured
+rows (`list[dict]`), not a pre-formatted string — any adapter that implements
+the interface gets export and saved reports for free, no adapter-specific
+code needed (see `reports/export.py` and `agent/builder.py`'s
+`extract_query_result`).
 
 ## Adding a database adapter
 

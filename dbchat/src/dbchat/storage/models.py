@@ -27,6 +27,21 @@ class DBConnection(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class SavedReport(Base):
+    """A user-saved, reusable question against one connection. Only the
+    question text is stored — running it always queries live data, which is
+    the point (a "report" here means "a question worth asking again," not a
+    cached snapshot)."""
+
+    __tablename__ = "saved_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    connection_id: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String)
+    question: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class LLMConfig(Base):
     """Singleton-ish table (one active row) for the deployment's LLM provider
     credentials, set via the setup wizard."""
