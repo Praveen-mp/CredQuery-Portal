@@ -37,9 +37,14 @@ change when a new one is added.
        def get_schema(self, table_names: list[str]) -> str:
            ...
 
-       def run_query(self, query: str) -> str:
+       def run_query(self, query: str) -> list[dict]:
            # Called with an ALREADY-VALIDATED read-only query — see
            # security/sql_guard.py. Don't re-implement validation here.
+           # Return rows as a list of {column: value} dicts, JSON-serializable
+           # (convert Decimal/date/UUID/etc. to str), and CAP the row count —
+           # see base.py's docstring for why. Structured rows (not a
+           # pre-formatted string) are what let the UI offer Excel/PDF export
+           # and "save as report" for free on top of any adapter.
            ...
 
        @property

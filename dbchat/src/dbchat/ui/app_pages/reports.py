@@ -7,6 +7,7 @@ from dbchat.agent.builder import (
 )
 from dbchat.reports.export import rows_to_excel_bytes, rows_to_pdf_bytes
 from dbchat.storage.store import delete_report, list_connections, list_reports
+from dbchat.ui.errors import render_llm_not_configured_error
 
 st.title("Reports", icon=":material/summarize:")
 st.caption("Saved questions you can rerun anytime — always against live data, never a stale snapshot.")
@@ -50,9 +51,15 @@ for report in reports:
                 try:
                     agent = get_agent(selected_id)
                 except LLMNotConfiguredError:
-                    st.error("No LLM provider configured yet.", icon=":material/error:")
+                    render_llm_not_configured_error()
                 except Exception as exc:
-                    st.error(f"Couldn't run this report: {exc}", icon=":material/error:")
+                    st.error(
+                        "Couldn't connect to this report's database. It may be "
+                        "unreachable or its credentials may have changed.",
+                        icon=":material/error:",
+                    )
+                    with st.expander("Technical details"):
+                        st.code(str(exc), language="text")
                 else:
                     with st.spinner("Running..."):
                         response = agent.invoke(

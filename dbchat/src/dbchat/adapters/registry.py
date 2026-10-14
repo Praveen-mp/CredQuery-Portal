@@ -13,8 +13,10 @@ def register(adapter_cls: type[BaseDBAdapter]) -> type[BaseDBAdapter]:
 def get_adapter_class(key: str) -> type[BaseDBAdapter]:
     try:
         return _REGISTRY[key]
-    except KeyError:
-        raise ValueError(f"No adapter registered for db_type={key!r}. Available: {list(_REGISTRY)}")
+    except KeyError as exc:
+        raise ValueError(
+            f"No adapter registered for db_type={key!r}. Available: {list(_REGISTRY)}"
+        ) from exc
 
 
 def available_adapters() -> dict[str, str]:

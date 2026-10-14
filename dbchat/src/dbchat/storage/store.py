@@ -17,6 +17,13 @@ def _session_factory():
     return sessionmaker(bind=engine)
 
 
+def reset_cache() -> None:
+    """Clears the cached engine/sessionmaker. Only needed between tests that
+    reconfigure APP_SECRET_KEY/METADATA_DB_PATH — the running app never
+    needs to call this."""
+    _session_factory.cache_clear()
+
+
 @contextmanager
 def session_scope():
     session = _session_factory()()
@@ -30,7 +37,10 @@ def session_scope():
         session.close()
 
 
-def save_connection(
+def save_connection(  # pylint: disable=too-many-arguments
+    # Keyword-only on purpose: this maps 1:1 to the Setup form's fields, and
+    # every call site is a keyword call, so there's no ambiguity to trade off
+    # against a DTO/dataclass here.
     *,
     name,
     db_type,

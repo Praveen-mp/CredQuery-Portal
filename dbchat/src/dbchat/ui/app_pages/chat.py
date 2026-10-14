@@ -11,6 +11,7 @@ from dbchat.agent.builder import (
 from dbchat.reports.export import rows_to_excel_bytes, rows_to_pdf_bytes
 from dbchat.security.rate_limiter import get_rate_limiter
 from dbchat.storage.store import list_connections, save_report
+from dbchat.ui.errors import render_llm_not_configured_error
 
 connections = list_connections()
 
@@ -54,10 +55,7 @@ def get_agent(connection_id: int):
 try:
     agent = get_agent(selected_id)
 except LLMNotConfiguredError:
-    st.error("No LLM provider configured yet.", icon=":material/error:")
-    st.page_link(
-        "app_pages/setup.py", label="Complete LLM setup", icon=":material/settings:"
-    )
+    render_llm_not_configured_error()
     st.stop()
 except Exception as exc:
     st.error(
@@ -82,10 +80,10 @@ if "session_id" not in st.session_state:
 def save_as_report_dialog(connection_id: int, question: str):
     st.caption(f'Question: "{question}"')
     st.caption("Saved as a question you can rerun later — it always queries live data.")
-    name = st.text_input("Report name", placeholder="e.g. Weekly signups by region")
-    if st.button("Save", type="primary", icon=":material/save:", disabled=not name):
-        save_report(connection_id=connection_id, name=name, question=question)
-        st.toast(f'Saved report "{name}".', icon=":material/check_circle:")
+    report_name = st.text_input("Report name", placeholder="e.g. Weekly signups by region")
+    if st.button("Save", type="primary", icon=":material/save:", disabled=not report_name):
+        save_report(connection_id=connection_id, name=report_name, question=question)
+        st.toast(f'Saved report "{report_name}".', icon=":material/check_circle:")
         st.rerun()
 
 

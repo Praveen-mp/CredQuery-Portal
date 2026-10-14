@@ -1,3 +1,7 @@
+import io
+
+from pypdf import PdfReader
+
 from dbchat.reports.export import rows_to_excel_bytes, rows_to_pdf_bytes
 
 
@@ -18,10 +22,6 @@ def test_rows_to_pdf_bytes_is_valid_pdf():
 
 
 def test_rows_to_pdf_bytes_paginates_long_results():
-    import io
-
-    from pypdf import PdfReader
-
     small = rows_to_pdf_bytes([{"id": 1}], title="Small")
     big = rows_to_pdf_bytes([{"id": i, "value": f"row {i}"} for i in range(300)], title="Big")
 
