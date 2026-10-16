@@ -13,13 +13,13 @@ dependencies = [
     "psycopg2-binary>=2.9.13",
     "pydantic-settings>=2.15.0",
     "cryptography>=43.0.0",
-    "streamlit>=1.65.0",
     "python-dotenv>=1.2.4",
     "pandas>=3.0.6",
     "openpyxl>=3.1.5",
     "fpdf2>=2.8.9",
     "fastapi>=0.143.1",
     "uvicorn[standard]>=0.54.0",
+    "streamlit[auth]>=1.65.0",
 ]
 
 [project.optional-dependencies]
