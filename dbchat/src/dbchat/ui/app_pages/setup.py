@@ -77,9 +77,11 @@ with db_tab:
         readonly_confirmed = st.checkbox(
             "I confirm this database user has read-only (SELECT-only) permissions",
             help=(
-                "dbchat also rejects non-SELECT queries at the application level, "
-                "but the database user itself should never have write access — "
-                "that's the real safety boundary."
+                "We also check this automatically — querying the user's actual "
+                "privileges, not just trusting this box — and refuse to save if "
+                "it isn't really read-only. This checkbox is a deliberate second "
+                "confirmation, not the only thing standing between a misconfigured "
+                "user and your database."
             ),
         )
         submitted = st.form_submit_button(

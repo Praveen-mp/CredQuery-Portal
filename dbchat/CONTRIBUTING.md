@@ -42,6 +42,23 @@ anyone contributing needs to run `pre-commit install --hook-type commit-msg`
 themselves once — CI should also run `conventional-pre-commit` against the
 PR title/commits so an unhooked contributor's push still gets caught.
 
+## CI
+
+Three checks run on every PR touching `dbchat/` (`.github/workflows/`):
+
+- **`tests.yml`** — the full `pytest` suite. No secrets configured or needed:
+  every test that touches config/storage sets its own throwaway
+  `APP_SECRET_KEY`/`METADATA_DB_PATH` via `monkeypatch`, isolated to a
+  per-test temp directory (see `tests/test_api.py`, `tests/test_saved_reports.py`
+  for the pattern) — never reuses real credentials, never touches a real
+  metadata database.
+- **`pylint.yml`** — gated on score (`fail-under = 9.5` in `pyproject.toml`),
+  not on "zero messages," so already-reviewed warnings don't block merges.
+- **`commit-lint.yml`** — PR title must follow Conventional Commits.
+
+All three run from `dbchat/` so `pyproject.toml`'s `[tool.pylint]` config is
+picked up the same way it is locally.
+
 ## Adding a new database adapter
 
 This is the main way to contribute. Every adapter implements the same
@@ -60,10 +77,25 @@ change when a new one is added.
        display_name = "Your DB"   # shown in the UI dropdown
 
        def __init__(self, connection: dict):
-           # connection has: host, port, database_name, username, password
+           # connection has: host, port, database_name, username, password.
+           # Read dbchat.core.config.get_app_settings() here for
+           # query_row_limit / query_timeout_seconds and apply the timeout
+           # via whatever mechanism your driver supports (e.g. Postgres uses
+           # a libpq `options` connect_arg — see adapters/postgres.py).
            ...
 
        def test_connection(self) -> tuple[bool, str]:
+           ...
+
+       def verify_read_only(self) -> tuple[bool | None, str]:
+           # Query the connected user's ACTUAL privileges — don't just trust
+           # the setup wizard's checkbox. Return False (hard block) if you
+           # find real write access (an explicit grant, ownership, admin/
+           # superuser status, ...), True if you positively confirmed none,
+           # or None if you genuinely can't tell (e.g. your driver/DB has no
+           # equivalent of Postgres's information_schema.role_table_grants).
+           # See adapters/postgres.py for a worked example and base.py's
+           # docstring for exactly what each return value means to callers.
            ...
 
        def list_tables(self) -> list[str]:
@@ -76,14 +108,22 @@ change when a new one is added.
            # Called with an ALREADY-VALIDATED read-only query — see
            # security/sql_guard.py. Don't re-implement validation here.
            # Return rows as a list of {column: value} dicts, JSON-serializable
-           # (convert Decimal/date/UUID/etc. to str), and CAP the row count —
-           # see base.py's docstring for why. Structured rows (not a
-           # pre-formatted string) are what let the UI offer Excel/PDF export
-           # and "save as report" for free on top of any adapter.
+           # (convert Decimal/date/UUID/etc. to str), and CAP the row count
+           # at self.row_limit — see base.py's docstring for why. Structured
+           # rows (not a pre-formatted string) are what let the UI offer
+           # Excel/PDF export and "save as report" for free on top of any
+           # adapter.
            ...
 
        @property
        def dialect(self) -> str:
+           ...
+
+       @property
+       def row_limit(self) -> int:
+           # Just return whatever you capped run_query's result at — the
+           # agent's system prompt surfaces this so the model writes its own
+           # COUNT/LIMIT instead of assuming it saw the whole result set.
            ...
    ```
 

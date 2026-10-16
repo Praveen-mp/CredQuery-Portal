@@ -1,11 +1,56 @@
 import pytest
 
+from dbchat.adapters.base import BaseDBAdapter
+from dbchat.adapters.registry import register
 from dbchat.agent.factory import AgentFactory
 from dbchat.repositories.base import ConnectionRepository, ReportRepository
 from dbchat.security.rate_limiter import RateLimiter
 from dbchat.services.chat_service import ChatService, RateLimitExceededError
 from dbchat.services.connection_service import ConnectionService
 from dbchat.services.report_service import ReportService
+
+
+@register
+class FakeDBAdapter(BaseDBAdapter):
+    """Registered under a throwaway key so ConnectionService.test()'s
+    orchestration logic (connect -> verify_read_only -> combined result) can
+    be exercised through the real adapters.registry lookup, with a
+    controllable result, instead of a live database."""
+
+    key = "fake_test_db"
+    display_name = "Fake (test only)"
+
+    # Class-level, set per-test, since ConnectionService.test() constructs
+    # a fresh instance via the registry rather than taking one as an argument.
+    connection_ok: bool = True
+    read_only: bool | None = True
+    read_only_message: str = "No write privileges detected for this user."
+
+    def __init__(self, connection: dict):
+        pass
+
+    def test_connection(self) -> tuple[bool, str]:
+        return self.connection_ok, "ok" if self.connection_ok else "connection failed"
+
+    def verify_read_only(self) -> tuple[bool | None, str]:
+        return self.read_only, self.read_only_message
+
+    def list_tables(self) -> list[str]:
+        return []
+
+    def get_schema(self, table_names: list[str]) -> str:
+        return ""
+
+    def run_query(self, query: str) -> list[dict]:
+        return []
+
+    @property
+    def dialect(self) -> str:
+        return "fake"
+
+    @property
+    def row_limit(self) -> int:
+        return 500
 
 
 class FakeConnectionRepository(ConnectionRepository):
@@ -103,6 +148,64 @@ def test_connection_service_create_list_delete():
 
     service.delete(connection_id)
     assert service.list() == []
+
+
+def _test_connection_kwargs(**overrides):
+    kwargs = {
+        "db_type": "fake_test_db", "host": "h", "port": 5432, "database_name": "d",
+        "username": "u", "password": "p",
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_connection_service_test_blocks_when_write_access_detected():
+    FakeDBAdapter.connection_ok = True
+    FakeDBAdapter.read_only = False
+    FakeDBAdapter.read_only_message = "This user has INSERT privilege on at least one table."
+    service = ConnectionService(FakeConnectionRepository())
+
+    ok, message = service.test(**_test_connection_kwargs())
+
+    assert ok is False
+    assert "NOT read-only" in message
+    assert "INSERT" in message
+
+
+def test_connection_service_test_passes_when_confirmed_read_only():
+    FakeDBAdapter.connection_ok = True
+    FakeDBAdapter.read_only = True
+    FakeDBAdapter.read_only_message = "No write privileges detected for this user."
+    service = ConnectionService(FakeConnectionRepository())
+
+    ok, message = service.test(**_test_connection_kwargs())
+
+    assert ok is True
+    assert "Connected successfully" in message
+
+
+def test_connection_service_test_allows_but_flags_when_unverifiable():
+    FakeDBAdapter.connection_ok = True
+    FakeDBAdapter.read_only = None
+    FakeDBAdapter.read_only_message = "permission denied for information_schema"
+    service = ConnectionService(FakeConnectionRepository())
+
+    ok, message = service.test(**_test_connection_kwargs())
+
+    # Can't be confirmed, so it isn't silently treated as safe — but it also
+    # isn't a hard block, since we can't prove it's actually unsafe either.
+    assert ok is True
+    assert "double-check this manually" in message
+
+
+def test_connection_service_test_fails_fast_when_connection_itself_fails():
+    FakeDBAdapter.connection_ok = False
+    service = ConnectionService(FakeConnectionRepository())
+
+    ok, message = service.test(**_test_connection_kwargs())
+
+    assert ok is False
+    assert message == "connection failed"
 
 
 def test_report_service_run_uses_live_agent_not_a_cached_answer():

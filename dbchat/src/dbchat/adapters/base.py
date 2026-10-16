@@ -40,6 +40,24 @@ class BaseDBAdapter(ABC):
         later in a chat session."""
 
     @abstractmethod
+    def verify_read_only(self) -> tuple[bool | None, str]:
+        """Queries the connected user's ACTUAL privileges — not the UI
+        checkbox self-attestation — and returns:
+        - (True, message)  — confirmed no write access.
+        - (False, message) — write access was definitively found (e.g. an
+          explicit INSERT/UPDATE/DELETE grant, table ownership, or a
+          superuser role that bypasses grants entirely). Callers MUST treat
+          this as a hard block on saving the connection, not a warning.
+        - (None, message)  — couldn't be determined (e.g. the check query
+          itself isn't supported, or the user lacks permission to run it).
+          Callers should fall back to requiring the user's own confirmation
+          in this case, not silently treat it as safe.
+
+        This exists because the DB-level read-only user is the real safety
+        boundary (see security/sql_guard.py's docstring) — an honor-system
+        checkbox can't actually verify that boundary holds."""
+
+    @abstractmethod
     def list_tables(self) -> list[str]:
         """All table/collection names the connected user can see."""
 
@@ -55,9 +73,15 @@ class BaseDBAdapter(ABC):
         dbchat.security.sql_guard first — this method does not re-validate,
         it trusts its caller.
 
-        Implementations MUST cap the number of rows returned (a few hundred
-        is reasonable) — an unbounded result set is both an LLM-context-size
-        problem and a production-database-load problem. Values must be
+        Implementations MUST cap the number of rows returned, using
+        `dbchat.core.config.get_app_settings().query_row_limit` (also expose
+        it via the `row_limit` property below, consistently — don't hardcode
+        a different number) — an unbounded result set is both an
+        LLM-context-size problem and a production-database-load problem.
+        Implementations should also apply `query_timeout_seconds` from the
+        same settings as a server-side statement timeout where the
+        underlying driver supports it, so a slow/unindexed query gets
+        cancelled instead of hanging the request. Values must be
         JSON-serializable; convert driver-specific types (Decimal, date,
         datetime, UUID, ...) to str/int/float as needed.
 
@@ -70,3 +94,10 @@ class BaseDBAdapter(ABC):
     def dialect(self) -> str:
         """Dialect/query-language name, surfaced in the agent's system prompt
         so it writes syntactically correct queries (e.g. 'postgresql')."""
+
+    @property
+    @abstractmethod
+    def row_limit(self) -> int:
+        """The cap run_query enforces — surfaced in the agent's system prompt
+        so the model knows to write its own LIMIT/aggregation (COUNT, GROUP BY)
+        rather than silently relying on results being truncated."""
