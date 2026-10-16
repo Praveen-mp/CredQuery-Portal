@@ -9,3 +9,6 @@ dist/
 *.db-journal
 .pytest_cache/
 .DS_Store
+
+# Real OIDC credentials — .streamlit/secrets.toml.example is the template to commit
+.streamlit/secrets.toml

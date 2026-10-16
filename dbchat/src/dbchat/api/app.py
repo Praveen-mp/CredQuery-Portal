@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
+from dbchat.api.auth import require_api_key
 from dbchat.api.routers import chat, connections, reports, setup
 
 app = FastAPI(
@@ -8,10 +9,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-app.include_router(connections.router)
-app.include_router(reports.router)
-app.include_router(chat.router)
-app.include_router(setup.router)
+# /health deliberately excluded — load balancers/orchestrators need to hit it
+# without a token. Every other route requires the API key (see api/auth.py).
+_auth = [Depends(require_api_key)]
+app.include_router(connections.router, dependencies=_auth)
+app.include_router(reports.router, dependencies=_auth)
+app.include_router(chat.router, dependencies=_auth)
+app.include_router(setup.router, dependencies=_auth)
 
 
 @app.get("/health")

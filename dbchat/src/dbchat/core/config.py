@@ -36,6 +36,13 @@ class AppSettings(BaseSettings):
     # query instead of letting it (and the request handling it) hang.
     query_timeout_seconds: float = 10.0
 
+    # Shared-secret auth for the FastAPI backend (api/auth.py) — a single
+    # pre-shared token, NOT per-user identity (the Streamlit UI uses real
+    # OIDC login via st.login instead, see .streamlit/secrets.toml.example).
+    # Left unset, the API is open — fine for local dev, but set this before
+    # exposing it beyond localhost.
+    api_key: str | None = None
+
 
 @lru_cache
 def get_app_settings() -> AppSettings:
