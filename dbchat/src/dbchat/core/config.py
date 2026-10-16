@@ -28,6 +28,14 @@ class AppSettings(BaseSettings):
     rate_limit_max_requests: int = 10
     rate_limit_window_seconds: float = 60.0
 
+    # Applies to every adapter (see adapters/base.py's run_query docstring).
+    # Caps how many rows a single query can return — protects the LLM's
+    # context window and the database itself from an unbounded SELECT.
+    query_row_limit: int = 500
+    # Server-side statement timeout, in seconds — cancels a slow/unindexed
+    # query instead of letting it (and the request handling it) hang.
+    query_timeout_seconds: float = 10.0
+
 
 @lru_cache
 def get_app_settings() -> AppSettings:

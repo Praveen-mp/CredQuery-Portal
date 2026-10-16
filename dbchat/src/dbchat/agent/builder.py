@@ -84,6 +84,14 @@ def build_agent_for_connection(connection_id: int):
 You must NEVER attempt to modify data or schema. Only SELECT queries are
 possible — your run_select_query tool will reject anything else.
 
+run_select_query returns at most {adapter.row_limit} rows, no matter how many
+the query would otherwise match. For questions about a count or an aggregate
+(e.g. "how many rows", "total revenue", "average price"), write a query using
+COUNT/SUM/AVG/GROUP BY so the database computes the answer directly — never
+infer a total from a possibly-truncated row list. If you do need to inspect
+individual rows from a large table, add your own ORDER BY ... LIMIT to get a
+meaningful, deliberate subset instead of an arbitrary truncated one.
+
 When answering:
 1. Call list_tables if you don't already know what tables exist.
 2. Call get_schema for only the tables relevant to the question.
